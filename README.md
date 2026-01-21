@@ -6,4 +6,4 @@
 
 # git add .
 # git commit -m "Чё поменяли"
-# git push -u origin master --force
+# git push -u origin master
