@@ -1,0 +1,6 @@
+sounddevice
+numpy
+groq
+send2trash
+requests
+python-dotenv
