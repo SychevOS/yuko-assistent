@@ -13,3 +13,6 @@
 # git branch(посмотреть где находимся и др ветки)
 # git push -u origin NAME(отправить ветку на гит)
 # git checkout master (переключение на основную)
+
+# ДЛЯ КЛОНИРОВАНИЯ ПРОЕКТА
+# git clone https://github.com/SychevOS/yuko-assistent
