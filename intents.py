@@ -43,6 +43,8 @@ def analyze(text: str) -> str:
             return "telegram"
         if has("steam"):
             return "steam"
+        if has("AnyDesk"):
+            return "AnyDesk"
         return "app"
 
     return "ai"
@@ -210,6 +212,11 @@ def handle_intent(intent: str, phrase: str) -> bool:
     if intent == "youtube":
         print("Юко: Открываю YouTube.")
         webbrowser.open("https://youtube.com")
+        return True
+
+    if intent == "anydesk":
+        print("Юко: Открываю AnyDesk.")
+        launch_app("anydesk")
         return True
 
     if intent == "discord":

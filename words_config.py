@@ -42,6 +42,7 @@ INTENT_KEYWORDS = {
     "discord": ["дискорд", "discord", "дискордик"],
     "telegram": ["телеграм", "telegram", "тг"],
     "steam": ["стим", "steam"],
+    "AnyDesk": ["энни дэск", "энни дейск", "энни дэйск", "не деск"],
 }
 # words_config.py (внизу файла)
 
