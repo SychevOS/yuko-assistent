@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
+from Logger import logger
+from datetime import datetime
 
 from audio_stt import listen
 from intents import (
@@ -26,8 +28,12 @@ BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "yuko_data"
 DATA_DIR.mkdir(exist_ok=True)
 
-print("Юко AI запущена. Скажи 'выход', чтобы завершить.\n")
+logger.log("=" * 50)
+logger.log("🚀 YUKO ASSISTANT ЗАПУЩЕН")
+logger.log(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+logger.log("=" * 50)
 
+print("Юко AI запущена. Скажи 'выход', чтобы завершить.\n")
 
 # ---------- главный цикл ----------
 
