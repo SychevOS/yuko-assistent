@@ -4,7 +4,7 @@ import subprocess
 import webbrowser
 import re
 from typing import Tuple, List
-
+from app_indexer import load_app_index
 from words_config import (
     INTENT_KEYWORDS,
     WAKE_WORDS,
@@ -13,9 +13,11 @@ from words_config import (
 )
 from app_launcher import launch_app
 from file_actions import search_file, open_file, show_in_explorer, delete_file
+from app_indexer import build_app_index  # <<< добавили импорт
 
 
 # ---------- анализ намерения ----------
+
 
 def analyze(text: str) -> str:
     t = text.lower().replace("ё", "е")
@@ -27,6 +29,8 @@ def analyze(text: str) -> str:
         return "exit"
     if has("thanks"):
         return "thanks"
+    if has("scan_apps"):          # <<< новый интент
+        return "scan_apps"
 
     if any(w in t for w in ["открой", "запусти", "включи"]):
         if has("calc"):
@@ -57,6 +61,7 @@ def has_wake_word(text: str) -> bool:
 
 # ---------- нормализация названий приложений ----------
 
+
 def normalize_app_name(name: str) -> str:
     name = name.strip().lower()
     for wrong, canonical in APP_NAME_ALIASES.items():
@@ -70,7 +75,7 @@ def extract_app_name(text: str) -> str | None:
     for trigger in ["открой", "запусти", "включи"]:
         if trigger in t:
             part = t.split(trigger, 1)[1].strip()
-            for junk in ["юко", "пожалуйста", "плиз"]:
+            for junk in ["юко", "юка", "пожалуйста", "плиз", "мне", "если можно"]:
                 part = part.replace(junk, " ")
             part = " ".join(part.split())
             return part or None
@@ -78,6 +83,7 @@ def extract_app_name(text: str) -> str | None:
 
 
 # ---------- парсинг команд из текста ИИ ----------
+
 
 CMD_PATTERN = re.compile(r"\[([A-Z_]+)(?::([^\]]*))?\]", re.IGNORECASE)
 
@@ -93,6 +99,7 @@ def parse_commands(text: str) -> Tuple[str, List[Tuple[str, str]]]:
 
 # ---------- вспомогательные функции ----------
 
+
 def open_default_browser(url: str | None = None):
     try:
         subprocess.run(
@@ -104,6 +111,7 @@ def open_default_browser(url: str | None = None):
 
 
 # ---------- исполнение команд из [CMD:...] ----------
+
 
 _last_user_phrase = ""
 
@@ -181,6 +189,7 @@ def execute_cmd(cmd_type: str, param: str, context_phrase: str = ""):
 
 # ---------- маппинг интента на действие (для main.py) ----------
 
+
 def handle_intent(intent: str, phrase: str) -> bool:
     """
     Выполняет действие по интенту.
@@ -192,6 +201,12 @@ def handle_intent(intent: str, phrase: str) -> bool:
 
     if intent == "thanks":
         print("Юко: Пожалуйста 💜")
+        return True
+
+    if intent == "scan_apps":
+        print("Юко: Сканирую установленные приложения, это может занять немного времени...")
+        index = build_app_index()
+        print(f"Юко: Готово, я запомнила {len(index)} приложений.")
         return True
 
     if intent == "calc":

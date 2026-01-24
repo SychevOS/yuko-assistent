@@ -32,8 +32,8 @@ def listen(duration: float = 8.0) -> str:
             beam_size=5,
             vad_filter=False,
             vad_parameters=dict(
-                min_silence_duration_ms=1000,  # дольше ждёт паузу
-                speech_pad_ms=400,
+                min_silence_duration_ms=1000,  # Дольше ждёт паузу
+                speech_pad_ms=400, # Подклеивание хвоста
             ),
         )
     except Exception as e:

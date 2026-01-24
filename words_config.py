@@ -27,7 +27,7 @@ BROWSER_TRIGGER_WORDS = [
 ]
 
 # Wake-слова
-WAKE_WORDS = ["юко", "юка", "югу", "yuko", "yuka"]
+WAKE_WORDS = ["юко", "юка", "югу", "yuko", "yuka", "юкко", "юкка"]
 
 # Ключевые слова для интентов
 INTENT_KEYWORDS = {
@@ -43,6 +43,7 @@ INTENT_KEYWORDS = {
     "telegram": ["телеграм", "telegram", "тг"],
     "steam": ["стим", "steam"],
     "AnyDesk": ["энни дэск", "энни дейск", "энни дэйск", "не деск"],
+    "scan_apps": ["просканируй приложения", "обнови список приложений", "просканируй систему", "найди все программы"],
 }
 # words_config.py (внизу файла)
 
@@ -65,4 +66,5 @@ APP_NAME_ALIASES = {
     "опера": "opera",
     "опера gx": "opera gx",
     "опера джикс": "opera gx",
+    "блендер": "blender",
 }

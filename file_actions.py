@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 from send2trash import send2trash  # pip install send2trash
+from Logger import logger
 
 USER_HOME = Path.home()
 
@@ -11,6 +12,9 @@ ALLOWED_ROOTS = [
     USER_HOME / "Downloads",
     USER_HOME / "Pictures",
     USER_HOME / "Videos",
+    USER_HOME / "Music",
+    USER_HOME / "OneDrive",
+    USER_HOME,  # Разрешить поиск по всему домашнему каталогу пользователя
 ]
 
 FORBIDDEN_PREFIXES = [
@@ -57,7 +61,7 @@ def search_file(query: str, max_results: int = 10):
 
         for dirpath, dirnames, filenames in os.walk(root):
             depth = Path(dirpath).relative_to(root).parts
-            if len(depth) > 5:
+            if len(depth) > 10:  # Увеличена глубина поиска
                 dirnames[:] = []
                 continue
 
@@ -68,15 +72,20 @@ def search_file(query: str, max_results: int = 10):
                         results.append(p)
                         if len(results) >= max_results:
                             return results
+    if not results:
+        logger.log(f"Файлы по запросу '{query}' не найдены в разрешенных папках", "WARNING")
     return results
 
 
 def open_file(path_str: str):
     path = _normalize(Path(path_str))
     if not path.exists():
+        logger.log(f"Файл не найден: {path}", "ERROR")
         raise FileNotFoundError(path)
     if not _is_allowed(path):
+        logger.log(f"Попытка открыть запрещенный файл: {path}", "ERROR")
         raise PermissionError("Path is outside allowed user folders")
+    logger.log(f"Открыт файл: {path}", "INFO")
     os.startfile(str(path))
 
 
