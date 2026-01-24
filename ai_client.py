@@ -1,5 +1,6 @@
 # ai_client.py
 import requests
+from Logger import logger
 
 OLLAMA_URL = "http://127.0.0.1:11434/api/chat"
 MODEL_NAME = "qwen2.5:7b-instruct"
@@ -38,16 +39,20 @@ def ask_ai(message: str) -> str:
     }
 
     try:
+        logger.info(f"AI_HTTP_REQUEST: url={OLLAMA_URL}, model={MODEL_NAME}, msg='{message}'")
         resp = requests.post(OLLAMA_URL, json=payload, timeout=120)
         resp.raise_for_status()
         data = resp.json()
-    except Exception as e:
-        print(f"Юко: ошибка обращения к модели: {e}")
+    except Exception:
+        logger.exception("AI_HTTP_ERROR: ошибка обращения к локальной модели через Ollama")
         return "У меня проблема с локальной моделью, попробуй позже."
 
     try:
         content = data["message"]["content"]
     except Exception:
+        logger.exception("AI_PARSE_ERROR: не смогла прочитать ответ модели")
         return "Не смогла прочитать ответ модели."
 
-    return (content or "").strip()
+    reply = (content or "").strip()
+    logger.info(f"AI_REPLY_RAW: '{reply[:200]}'")
+    return reply
