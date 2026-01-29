@@ -1,0 +1,434 @@
+[
+  {
+    "name": "7-zip 24.05 (x64)",
+    "path": "C:\\Program Files\\7-Zip\\7zFM.exe"
+  },
+  {
+    "name": "amd software",
+    "path": "C:\\Program Files\\AMD\\CIM\\BIN64\\7z.exe"
+  },
+  {
+    "name": "cpuid cpu-z 2.09",
+    "path": "C:\\Program Files\\CPUID\\CPU-Z\\cpuz.exe"
+  },
+  {
+    "name": "startallback",
+    "path": "C:\\Program Files\\StartAllBack\\StartAllBackCfg.exe"
+  },
+  {
+    "name": "escape the backrooms",
+    "path": "H:\\Steam\\steamapps\\common\\EscapeTheBackrooms\\Backrooms.exe"
+  },
+  {
+    "name": "payday 2",
+    "path": "H:\\Steam\\steamapps\\common\\PAYDAY 2\\payday2_win32_release.exe"
+  },
+  {
+    "name": "7 days to die",
+    "path": "H:\\Steam\\steamapps\\common\\7 Days To Die\\7DaysToDie.exe"
+  },
+  {
+    "name": "itop easy desktop for steam",
+    "path": "H:\\Steam\\steamapps\\common\\iTop Easy Desktop\\iEasyDesk.exe"
+  },
+  {
+    "name": "supermarket together",
+    "path": "H:\\Steam\\steamapps\\common\\Supermarket Together\\Supermarket Together.exe"
+  },
+  {
+    "name": "r.e.p.o.",
+    "path": "H:\\Steam\\steamapps\\common\\REPO\\REPO.exe"
+  },
+  {
+    "name": "blender",
+    "path": "H:\\Steam\\steamapps\\common\\Blender\\blender-launcher.exe"
+  },
+  {
+    "name": "wallpaper engine",
+    "path": "H:\\Steam\\steamapps\\common\\wallpaper_engine\\launcher.exe"
+  },
+  {
+    "name": "beyond: two souls",
+    "path": "H:\\Steam\\steamapps\\common\\BEYOND Two Souls\\BeyondTwoSouls_Steam.exe"
+  },
+  {
+    "name": "bonjour",
+    "path": "C:\\Program Files (x86)\\Bonjour\\mDNSResponder.exe"
+  },
+  {
+    "name": "outline 1.19.0",
+    "path": "C:\\Program Files (x86)\\Outline\\Outline.exe"
+  },
+  {
+    "name": "visual studio community 2022",
+    "path": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\devenv.exe"
+  },
+  {
+    "name": "droidcam client",
+    "path": "H:\\DroidCam\\DroidCamApp.exe"
+  },
+  {
+    "name": "escape from tarkov",
+    "path": "H:\\EFT\\EscapeFromTarkov.exe"
+  },
+  {
+    "name": "lonelyscreen 1.2.16",
+    "path": "H:\\LonelyScreen\\LonelyScreen.exe"
+  },
+  {
+    "name": "microsoft edge",
+    "path": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\144.0.3719.82\\msedge.exe"
+  },
+  {
+    "name": "microsoft edge webview2 runtime",
+    "path": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\144.0.3719.93\\msedgewebview2.exe"
+  },
+  {
+    "name": "qbittorrent",
+    "path": "C:\\Users\\Administrator\\qBittorrent\\qbittorrent.exe"
+  },
+  {
+    "name": "steam",
+    "path": "H:\\Steam\\steam.exe"
+  },
+  {
+    "name": "microsoft visual c++ 2013 redistributable (x64) - 12.0.30501",
+    "path": "C:\\ProgramData\\Package Cache\\{050d4fc8-5d48-4b8f-8972-47c82c46020f}\\vcredist_x64.exe"
+  },
+  {
+    "name": "microsoft windows desktop runtime - 6.0.36 (x64)",
+    "path": "C:\\ProgramData\\Package Cache\\{0532b8f2-12d7-43de-95fc-7b87006758a8}\\windowsdesktop-runtime-6.0.36-win-x64.exe"
+  },
+  {
+    "name": "anydesk 6.1",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\anydesk\\anydesk.exe"
+  },
+  {
+    "name": "battlestate games launcher 14.7.2.4271",
+    "path": "H:\\BsgLauncher\\BsgLauncher.exe"
+  },
+  {
+    "name": "microsoft windows desktop runtime - 6.0.36 (x86)",
+    "path": "C:\\ProgramData\\Package Cache\\{c37854d7-1852-4785-82ff-86ff988e4caf}\\windowsdesktop-runtime-6.0.36-win-x86.exe"
+  },
+  {
+    "name": "radmin vpn 2.0.9",
+    "path": "C:\\Program Files (x86)\\Radmin VPN\\drvinst.exe"
+  },
+  {
+    "name": "microsoft visual c++ 2013 redistributable (x86) - 12.0.30501",
+    "path": "C:\\ProgramData\\Package Cache\\{f65db027-aff3-4070-886a-0d87064aabb1}\\vcredist_x86.exe"
+  },
+  {
+    "name": "яндекс музыка 5.82.0",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\Programs\\YandexMusic\\Яндекс Музыка.exe"
+  },
+  {
+    "name": "gimp 3.0.6-1",
+    "path": "H:\\GIMP 3\\bin\\gimp-3.exe"
+  },
+  {
+    "name": "wps office (12.2.0.23196)",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\Kingsoft\\WPS Office\\ksolaunch.exe"
+  },
+  {
+    "name": "opera gx stable 126.0.5750.56",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Opera GX\\opera.exe"
+  },
+  {
+    "name": "comet",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\Perplexity\\Comet\\Application\\comet.exe"
+  },
+  {
+    "name": "python 3.14.2 (64-bit)",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\Package Cache\\{0ef3959c-4dd0-4cd2-9d49-307eaf0a2bff}\\python-3.14.2-amd64.exe"
+  },
+  {
+    "name": "python 3.11.9 (64-bit)",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\Package Cache\\{1da2e09b-199c-4def-9a99-93a8c1b8ddf2}\\python-3.11.9-amd64.exe"
+  },
+  {
+    "name": "ollama version 0.15.0",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Ollama\\ollama app.exe"
+  },
+  {
+    "name": "telegram desktop",
+    "path": "C:\\Users\\Administrator\\AppData\\Roaming\\Telegram Desktop\\Telegram.exe"
+  },
+  {
+    "name": "microsoft visual studio code (user)",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
+  },
+  {
+    "name": "microsoft edge",
+    "path": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
+  },
+  {
+    "name": "ollama",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Ollama\\ollama app.exe"
+  },
+  {
+    "name": "wps office",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\Kingsoft\\WPS Office\\ksolaunch.exe"
+  },
+  {
+    "name": "wps pdf",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\Kingsoft\\WPS Office\\ksolaunch.exe"
+  },
+  {
+    "name": "wps sheets",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\Kingsoft\\WPS Office\\ksolaunch.exe"
+  },
+  {
+    "name": "wps slides",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\Kingsoft\\WPS Office\\ksolaunch.exe"
+  },
+  {
+    "name": "wps docs",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\Kingsoft\\WPS Office\\ksolaunch.exe"
+  },
+  {
+    "name": "браузер opera gx",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Opera GX\\opera.exe"
+  },
+  {
+    "name": "яндекс музыка",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\Programs\\YandexMusic\\Яндекс Музыка.exe"
+  },
+  {
+    "name": "magnify",
+    "path": "C:\\Windows\\system32\\magnify.exe"
+  },
+  {
+    "name": "narrator",
+    "path": "C:\\Windows\\system32\\narrator.exe"
+  },
+  {
+    "name": "on-screen keyboard",
+    "path": "C:\\Windows\\system32\\osk.exe"
+  },
+  {
+    "name": "voiceaccess",
+    "path": "C:\\Windows\\system32\\voiceaccess.exe"
+  },
+  {
+    "name": "hd mode",
+    "path": "H:\\DroidCam\\DroidCamApp.exe"
+  },
+  {
+    "name": "command prompt",
+    "path": "C:\\Windows\\system32\\cmd.exe"
+  },
+  {
+    "name": "telegram",
+    "path": "C:\\Users\\Administrator\\AppData\\Roaming\\Telegram Desktop\\Telegram.exe"
+  },
+  {
+    "name": "visual studio code",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
+  },
+  {
+    "name": "windows powershell (x86)",
+    "path": "C:\\Windows\\SysWOW64\\WindowsPowerShell\\v1.0\\powershell.exe"
+  },
+  {
+    "name": "windows powershell",
+    "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+  },
+  {
+    "name": "wps office configuration tools",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\Kingsoft\\WPS Office\\12.2.0.23196\\office6\\ksomisc.exe"
+  },
+  {
+    "name": "средства настройки wps office",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\Kingsoft\\WPS Office\\12.2.0.23155\\office6\\ksomisc.exe"
+  },
+  {
+    "name": "xrmpe launcher",
+    "path": "D:\\X-Ray Multiplayer Extension\\xrmpe-launcher.exe"
+  },
+  {
+    "name": "adobe after effects 2025",
+    "path": "C:\\Program Files\\Adobe\\Adobe After Effects 2025\\Support Files\\AfterFX.exe"
+  },
+  {
+    "name": "adobe premiere pro 2024",
+    "path": "C:\\Program Files\\Adobe\\Adobe Premiere Pro 2024\\Adobe Premiere Pro.exe"
+  },
+  {
+    "name": "outline",
+    "path": "C:\\Program Files (x86)\\Outline\\Outline.exe"
+  },
+  {
+    "name": "visual studio 2022",
+    "path": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\devenv.exe"
+  },
+  {
+    "name": "7-zip file manager",
+    "path": "C:\\Program Files\\7-Zip\\7zFM.exe"
+  },
+  {
+    "name": "calculator",
+    "path": "C:\\Program Files\\Windows Classics\\win32calc.exe"
+  },
+  {
+    "name": "notepad",
+    "path": "C:\\Windows\\system32\\notepad.exe"
+  },
+  {
+    "name": "paint",
+    "path": "C:\\Program Files\\Windows Classics\\mspaint.exe"
+  },
+  {
+    "name": "remote desktop connection",
+    "path": "C:\\Windows\\system32\\mstsc.exe"
+  },
+  {
+    "name": "steps recorder",
+    "path": "C:\\Windows\\system32\\psr.exe"
+  },
+  {
+    "name": "wordpad",
+    "path": "C:\\Program Files\\Windows NT\\Accessories\\wordpad.exe"
+  },
+  {
+    "name": "character map",
+    "path": "C:\\Windows\\system32\\charmap.exe"
+  },
+  {
+    "name": "disk cleanup",
+    "path": "C:\\Windows\\system32\\cleanmgr.exe"
+  },
+  {
+    "name": "recoverydrive",
+    "path": "C:\\Windows\\system32\\RecoveryDrive.exe"
+  },
+  {
+    "name": "registry editor",
+    "path": "C:\\Windows\\regedit.exe"
+  },
+  {
+    "name": "system configuration",
+    "path": "C:\\Windows\\system32\\msconfig.exe"
+  },
+  {
+    "name": "system information",
+    "path": "C:\\Windows\\system32\\msinfo32.exe"
+  },
+  {
+    "name": "amd software꞉ adrenalin edition",
+    "path": "C:\\Program Files\\AMD\\CNext\\CNext\\RadeonSoftware.exe"
+  },
+  {
+    "name": "amd install manager",
+    "path": "C:\\Program Files\\AMD\\AMDInstallManager\\AMDInstallManager.exe"
+  },
+  {
+    "name": "anydesk",
+    "path": "C:\\Users\\Administrator\\AppData\\Local\\anydesk\\anydesk.exe"
+  },
+  {
+    "name": "battlestate games launcher",
+    "path": "H:\\BsgLauncher\\BsgLauncher.exe"
+  },
+  {
+    "name": "cpu-z",
+    "path": "C:\\Program Files\\CPUID\\CPU-Z\\cpuz.exe"
+  },
+  {
+    "name": "lonelyscreen",
+    "path": "H:\\LonelyScreen\\LonelyScreen.exe"
+  },
+  {
+    "name": "marvels spider-man miles morales",
+    "path": "C:\\Games\\Marvels Spider-Man Miles Morales\\MilesMorales.exe"
+  },
+  {
+    "name": "powershell 7 (x64)",
+    "path": "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
+  },
+  {
+    "name": "radmin viewer 3",
+    "path": "C:\\Program Files (x86)\\Radmin VPN\\Radmin.exe"
+  },
+  {
+    "name": "radmin vpn",
+    "path": "C:\\Program Files (x86)\\Radmin VPN\\RvRvpnGui.exe"
+  },
+  {
+    "name": "steam",
+    "path": "H:\\Steam\\Steam.exe"
+  },
+  {
+    "name": "task manager",
+    "path": "C:\\Windows\\system32\\taskmgr.exe"
+  },
+  {
+    "name": "developer command prompt for vs 2022",
+    "path": "C:\\Windows\\System32\\cmd.exe"
+  },
+  {
+    "name": "developer powershell for vs 2022",
+    "path": "C:\\Windows\\SysWOW64\\WindowsPowerShell\\v1.0\\powershell.exe"
+  },
+  {
+    "name": "x64 native tools command prompt for vs 2022",
+    "path": "C:\\Windows\\System32\\cmd.exe"
+  },
+  {
+    "name": "x64_x86 cross tools command prompt for vs 2022",
+    "path": "C:\\Windows\\System32\\cmd.exe"
+  },
+  {
+    "name": "x86 native tools command prompt for vs 2022",
+    "path": "C:\\Windows\\System32\\cmd.exe"
+  },
+  {
+    "name": "x86_x64 cross tools command prompt for vs 2022",
+    "path": "C:\\Windows\\System32\\cmd.exe"
+  },
+  {
+    "name": "windows powershell ise (x86)",
+    "path": "C:\\Windows\\syswow64\\WindowsPowerShell\\v1.0\\PowerShell_ISE.exe"
+  },
+  {
+    "name": "windows powershell ise",
+    "path": "C:\\Windows\\system32\\WindowsPowerShell\\v1.0\\PowerShell_ISE.exe"
+  },
+  {
+    "name": "adobe",
+    "path": "C:\\Program Files\\Adobe\\Adobe Premiere Pro 2024\\TeamProjectsLocalHub.exe"
+  },
+  {
+    "name": "amd",
+    "path": "C:\\Program Files\\AMD\\CIM\\Bin64\\AMDSplashScreen.exe"
+  },
+  {
+    "name": "git",
+    "path": "C:\\Program Files\\Git\\mingw64\\bin\\scalar.exe"
+  },
+  {
+    "name": "meta horizon",
+    "path": "C:\\Program Files\\Meta Horizon\\Support\\oculus-runtime\\OVRServer_x64.exe"
+  },
+  {
+    "name": "mister horse product manager",
+    "path": "C:\\Program Files\\Mister Horse Product Manager\\ProductManager.exe"
+  },
+  {
+    "name": "windows defender advanced threat protection",
+    "path": "C:\\Program Files\\Windows Defender Advanced Threat Protection\\SenseNdr.exe"
+  },
+  {
+    "name": "amd",
+    "path": "C:\\Program Files (x86)\\AMD\\Chipset_Software\\AMD_Chipset_Drivers.exe"
+  },
+  {
+    "name": "common files",
+    "path": "C:\\Program Files (x86)\\Common Files\\Adobe\\Adobe Desktop Common\\HDBox\\Set-up.exe"
+  },
+  {
+    "name": "microsoft",
+    "path": "C:\\Program Files (x86)\\Microsoft\\EdgeUpdate\\Download\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}\\144.0.3719.93\\MicrosoftEdge_X64_144.0.3719.93_144.0.3719.82.exe"
+  }
+]
