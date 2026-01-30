@@ -4,7 +4,7 @@ app_indexer.py
   - DisplayName из реестра (Uninstall)
   - ярлыки из меню Пуск
   - верхний уровень Program Files / Program Files (x86)
-Результат: список объектов { "name": <str>, "path": <str> } в app_index.json.
+Результат: список объектов { "name": <str>, "path": <str>, "variants": [<str>, ...] } в app_index.json.
 """
 
 import os
@@ -13,9 +13,10 @@ from pathlib import Path
 import winreg
 import win32file
 
+from transcription import RussianTranscriber  # <-- НОВЫЙ импорт
+
 
 APP_INDEX_PATH = Path(__file__).parent / "app_index.json"
-
 
 # exe, которые НЕ хотим считать запускаемыми приложениями (жёсткие имена)
 BAD_LEAFS = {
@@ -74,7 +75,10 @@ def _prefer_real_exe(exe_path: str) -> str:
     Если путь похож на лаунчер/апдейтер, пробуем найти более «настоящий» exe
     в той же папке (крупный файл, не update/launcher/install/setup).
     """
-    bad_names = {"update.exe", "launcher.exe", "install.exe", "setup.exe", "uninstall.exe", "unins000.exe"}
+    bad_names = {
+        "update.exe", "launcher.exe", "install.exe",
+        "setup.exe", "uninstall.exe", "unins000.exe"
+    }
 
     p = Path(exe_path)
     if p.name.lower() not in bad_names:
@@ -236,7 +240,10 @@ def scan_program_files() -> list[dict]:
         Path(os.environ.get("ProgramFiles", r"C:\Program Files")),
         Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")),
     ]
-    bad_names = {"unins000.exe", "uninstall.exe", "update.exe", "launcher.exe", "install.exe", "setup.exe"}
+    bad_names = {
+        "unins000.exe", "uninstall.exe", "update.exe",
+        "launcher.exe", "install.exe", "setup.exe"
+    }
 
     for base in base_dirs:
         if not base.exists():
@@ -311,7 +318,7 @@ def build_app_index() -> list[dict]:
 
     # удаляем дубли по (name, path)
     seen = set()
-    unique_index = []
+    unique_index: list[dict] = []
     for item in index:
         key = (item["name"], item["path"])
         if key in seen:
@@ -319,16 +326,30 @@ def build_app_index() -> list[dict]:
         seen.add(key)
         unique_index.append(item)
 
-    print("DEBUG app_indexer: total apps:", len(unique_index))
+    print("DEBUG app_indexer: total apps (raw):", len(unique_index))
+
+    # ---------- добавляем нормализованные варианты имён для поиска ----------
+    enriched_index: list[dict] = []
+    for item in unique_index:
+        name = item["name"]
+        path = item["path"]
+        variants = RussianTranscriber.normalize_app_name(name)
+        enriched_index.append({
+            "name": name,
+            "path": path,
+            "variants": variants,
+        })
+
+    print("DEBUG app_indexer: total apps (enriched):", len(enriched_index))
 
     try:
         with open(APP_INDEX_PATH, "w", encoding="utf-8") as f:
-            json.dump(unique_index, f, ensure_ascii=False, indent=2)
+            json.dump(enriched_index, f, ensure_ascii=False, indent=2)
         print("DEBUG app_indexer: index saved to", APP_INDEX_PATH)
     except Exception as e:
         print("ERROR app_indexer: failed to save index:", e)
 
-    return unique_index
+    return enriched_index
 
 
 def load_app_index() -> list[dict]:
@@ -336,12 +357,20 @@ def load_app_index() -> list[dict]:
         try:
             with open(APP_INDEX_PATH, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            result = []
+            result: list[dict] = []
             for item in data:
                 name = str(item.get("name", "")).strip().lower()
                 path = str(item.get("path", "")).strip()
+                variants = item.get("variants")
+                if not isinstance(variants, list):
+                    # старый формат индекса — восстанавливаем варианты
+                    variants = RussianTranscriber.normalize_app_name(name)
                 if name and path:
-                    result.append({"name": name, "path": path})
+                    result.append({
+                        "name": name,
+                        "path": path,
+                        "variants": variants,
+                    })
             return result
         except Exception:
             return []

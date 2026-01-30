@@ -1,3 +1,8 @@
 {
-
+  "discord": "C:\\Windows\\system32\\cleanmgr.exe",
+  "telegram": "C:\\Users\\Administrator\\AppData\\Roaming\\Telegram Desktop\\Telegram.exe",
+  "steam": "H:\\Steam\\steam.exe",
+  "payday 2": "H:\\Steam\\steamapps\\common\\PAYDAY 2\\payday2_win32_release.exe",
+  "": "C:\\Program Files\\7-Zip\\7zFM.exe",
+  "escape the backrooms": "H:\\Steam\\steamapps\\common\\EscapeTheBackrooms\\Backrooms.exe"
 }

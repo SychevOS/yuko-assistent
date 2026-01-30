@@ -3,8 +3,9 @@ import os
 import subprocess
 import webbrowser
 import re
-from typing import Tuple, List
-from app_indexer import load_app_index
+from typing import Tuple, List, Dict, Any
+
+from app_indexer import load_app_index, build_app_index
 from words_config import (
     INTENT_KEYWORDS,
     WAKE_WORDS,
@@ -13,45 +14,15 @@ from words_config import (
 )
 from app_launcher import launch_app
 from file_actions import search_file, open_file, show_in_explorer, delete_file
-from app_indexer import build_app_index  # <<< добавили импорт
 
 
-# ---------- анализ намерения ----------
+# ---------- модель интента ----------
+
+IntentDict = Dict[str, Any]
 
 
-def analyze(text: str) -> str:
-    t = text.lower().replace("ё", "е")
-
-    def has(key: str) -> bool:
-        return any(w in t for w in INTENT_KEYWORDS.get(key, []))
-
-    if has("exit"):
-        return "exit"
-    if has("thanks"):
-        return "thanks"
-    if has("scan_apps"):          # <<< новый интент
-        return "scan_apps"
-
-    if any(w in t for w in ["открой", "запусти", "включи"]):
-        if has("calc"):
-            return "calc"
-        if has("notepad"):
-            return "notepad"
-        if has("browser"):
-            return "browser"
-        if has("youtube"):
-            return "youtube"
-        if has("discord"):
-            return "discord"
-        if has("telegram"):
-            return "telegram"
-        if has("steam"):
-            return "steam"
-        if has("AnyDesk"):
-            return "AnyDesk"
-        return "app"
-
-    return "ai"
+def _has_keyword(t: str, key: str) -> bool:
+    return any(w in t for w in INTENT_KEYWORDS.get(key, []))
 
 
 def has_wake_word(text: str) -> bool:
@@ -59,31 +30,189 @@ def has_wake_word(text: str) -> bool:
     return any(w in t for w in WAKE_WORDS)
 
 
-# ---------- нормализация названий приложений ----------
-
-
-def normalize_app_name(name: str) -> str:
-    name = name.strip().lower()
-    for wrong, canonical in APP_NAME_ALIASES.items():
-        if wrong in name:
-            return canonical
-    return name
-
-
 def extract_app_name(text: str) -> str | None:
+    """
+    Достаём «сырое» имя приложения из фразы пользователя.
+    Примеры:
+      - "Юко, открой дискордик" -> "дискордик"
+      - "запусти мне, пожалуйста, escape from tarkov" -> "escape from tarkov"
+    """
     t = text.lower()
-    for trigger in ["открой", "запусти", "включи"]:
+    triggers = ["открой", "запусти", "включи", "запуск", "запускать"]
+
+    for trigger in triggers:
         if trigger in t:
-            part = t.split(trigger, 1)[1].strip()
-            for junk in ["юко", "юка", "пожалуйста", "плиз", "мне", "если можно"]:
-                part = part.replace(junk, " ")
-            part = " ".join(part.split())
-            return part or None
-    return None
+            part = t.split(trigger, 1)[1]
+            break
+    else:
+        return None
+
+    # вычищаем сервисные слова
+    junk_words = ["юко", "юка", "юкка", "юкко", "пожалуйста", "плиз", "мне", "если можно"]
+    for j in junk_words:
+        part = part.replace(j, " ")
+
+    part = " ".join(part.split())
+    return part or None
+
+
+def normalize_app_slot(name: str) -> str:
+    """
+    Приводим имя приложения к более каноничному виду.
+    Сначала словарь APP_NAME_ALIASES, потом просто trim+lower.
+    """
+    n = name.strip().lower()
+    for wrong, canonical in APP_NAME_ALIASES.items():
+        if wrong in n:
+            return canonical
+    return n
+
+
+def analyze(text: str) -> IntentDict:
+    """
+    Анализ фразы пользователя и возврат структурированного интента.
+
+    Возвращает словарь:
+      {
+        "intent": <str>,
+        "slots": { ... },
+        "confidence": <float 0..1>,
+        "raw_text": <str>
+      }
+
+    Примеры:
+      - exit / thanks / scan_apps
+      - open_app (с конкретными shortcut'ами и общим случаем)
+      - open_browser / open_youtube
+      - fallback -> "ai"
+    """
+    t_raw = text or ""
+    t = t_raw.lower().replace("ё", "е")
+    slots: Dict[str, Any] = {}
+    intent = "ai"
+    confidence = 0.5
+
+    # 1. Явные системные команды (высокий приоритет)
+    if _has_keyword(t, "exit"):
+        return {
+            "intent": "exit",
+            "slots": {},
+            "confidence": 0.99,
+            "raw_text": t_raw,
+        }
+
+    if _has_keyword(t, "thanks"):
+        return {
+            "intent": "thanks",
+            "slots": {},
+            "confidence": 0.99,
+            "raw_text": t_raw,
+        }
+
+    if _has_keyword(t, "scan_apps"):
+        return {
+            "intent": "scan_apps",
+            "slots": {},
+            "confidence": 0.95,
+            "raw_text": t_raw,
+        }
+
+    # 2. Команды вида "открой / запусти / включи ..."
+    has_open_verb = any(w in t for w in ["открой", "запусти", "включи"])
+    if has_open_verb:
+        # shortcut-приложения из INTENT_KEYWORDS
+        if _has_keyword(t, "calc"):
+            return {
+                "intent": "open_app",
+                "slots": {"app_type": "system", "target": "calc"},
+                "confidence": 0.95,
+                "raw_text": t_raw,
+            }
+        if _has_keyword(t, "notepad"):
+            return {
+                "intent": "open_app",
+                "slots": {"app_type": "system", "target": "notepad"},
+                "confidence": 0.95,
+                "raw_text": t_raw,
+            }
+        if _has_keyword(t, "browser"):
+            return {
+                "intent": "open_browser",
+                "slots": {},
+                "confidence": 0.95,
+                "raw_text": t_raw,
+            }
+        if _has_keyword(t, "youtube"):
+            return {
+                "intent": "open_youtube",
+                "slots": {},
+                "confidence": 0.95,
+                "raw_text": t_raw,
+            }
+        if _has_keyword(t, "discord"):
+            return {
+                "intent": "open_app",
+                "slots": {"app_type": "shortcut", "target": "discord"},
+                "confidence": 0.9,
+                "raw_text": t_raw,
+            }
+        if _has_keyword(t, "telegram"):
+            return {
+                "intent": "open_app",
+                "slots": {"app_type": "shortcut", "target": "telegram"},
+                "confidence": 0.9,
+                "raw_text": t_raw,
+            }
+        if _has_keyword(t, "steam"):
+            return {
+                "intent": "open_app",
+                "slots": {"app_type": "shortcut", "target": "steam"},
+                "confidence": 0.9,
+                "raw_text": t_raw,
+            }
+        if _has_keyword(t, "AnyDesk"):
+            return {
+                "intent": "open_app",
+                "slots": {"app_type": "shortcut", "target": "AnyDesk"},
+                "confidence": 0.9,
+                "raw_text": t_raw,
+            }
+
+        # общий случай — "открой <что‑то>", пусть будет open_app с raw_name
+        app_raw = extract_app_name(t_raw)
+        if app_raw:
+            slots["app_type"] = "generic"
+            slots["raw_name"] = app_raw
+            slots["normalized_name"] = normalize_app_slot(app_raw)
+            intent = "open_app"
+            confidence = 0.7
+            return {
+                "intent": intent,
+                "slots": slots,
+                "confidence": confidence,
+                "raw_text": t_raw,
+            }
+
+    # 3. Браузерные команды без явного глагола
+    if any(w in t for w in BROWSER_TRIGGER_WORDS):
+        # можно потом расширить: поиск / конкретный сайт и т.д.
+        return {
+            "intent": "open_browser",
+            "slots": {},
+            "confidence": 0.7,
+            "raw_text": t_raw,
+        }
+
+    # 4. Fallback — всё остальное отдаём ИИ
+    return {
+        "intent": "ai",
+        "slots": {},
+        "confidence": confidence,
+        "raw_text": t_raw,
+    }
 
 
 # ---------- парсинг команд из текста ИИ ----------
-
 
 CMD_PATTERN = re.compile(r"\[([A-Z_]+)(?::([^\]]*))?\]", re.IGNORECASE)
 
@@ -99,9 +228,9 @@ def parse_commands(text: str) -> Tuple[str, List[Tuple[str, str]]]:
 
 # ---------- вспомогательные функции ----------
 
-
 def open_default_browser(url: str | None = None):
     try:
+        # Можно вынести путь в конфиг
         subprocess.run(
             [r"C:\Users\Administrator\AppData\Local\Programs\Opera GX\opera.exe", "--new-tab"],
             check=False,
@@ -111,7 +240,6 @@ def open_default_browser(url: str | None = None):
 
 
 # ---------- исполнение команд из [CMD:...] ----------
-
 
 _last_user_phrase = ""
 
@@ -189,12 +317,23 @@ def execute_cmd(cmd_type: str, param: str, context_phrase: str = ""):
 
 # ---------- маппинг интента на действие (для main.py) ----------
 
-
-def handle_intent(intent: str, phrase: str) -> bool:
+def handle_intent(intent_data: IntentDict) -> bool:
     """
     Выполняет действие по интенту.
     Возвращает True, если интент обработан и дальше можно не звать ИИ.
+
+    Ожидает словарь от analyze():
+      {
+        "intent": <str>,
+        "slots": {...},
+        ...
+      }
     """
+    intent = intent_data.get("intent", "ai")
+    slots = intent_data.get("slots", {})
+    phrase = intent_data.get("raw_text", "") or ""
+
+    # системные
     if intent == "exit":
         print("Юко: Пока 👋")
         os._exit(0)
@@ -209,54 +348,40 @@ def handle_intent(intent: str, phrase: str) -> bool:
         print(f"Юко: Готово, я запомнила {len(index)} приложений.")
         return True
 
-    if intent == "calc":
-        print("Юко: Открываю калькулятор.")
-        subprocess.Popen("calc", shell=True)
-        return True
-
-    if intent == "notepad":
-        print("Юко: Открываю блокнот.")
-        subprocess.Popen("notepad", shell=True)
-        return True
-
-    if intent == "browser":
+    # открытие приложений / браузера / ютуба
+    if intent == "open_browser":
         print("Юко: Открываю браузер.")
         open_default_browser()
         return True
 
-    if intent == "youtube":
+    if intent == "open_youtube":
         print("Юко: Открываю YouTube.")
         webbrowser.open("https://youtube.com")
         return True
 
-    if intent == "anydesk":
-        print("Юко: Открываю AnyDesk.")
-        launch_app("anydesk")
-        return True
+    if intent == "open_app":
+        app_type = slots.get("app_type", "generic")
+        target = slots.get("target")
+        raw_name = slots.get("raw_name") or target
 
-    if intent == "discord":
-        print("Юко: Открываю Discord.")
-        launch_app("discord")
-        return True
-
-    if intent == "telegram":
-        print("Юко: Открываю Telegram.")
-        launch_app("telegram")
-        return True
-
-    if intent == "steam":
-        print("Юко: Открываю Steam.")
-        launch_app("steam")
-        return True
-
-    if intent == "app":
-        app_raw = extract_app_name(phrase)
-        if not app_raw:
-            print("Юко: Не поняла, какое приложение открыть.")
+        if app_type == "system" and target:
+            print(f"Юко: Открываю {target}.")
+            # системные штуки через subprocess
+            subprocess.Popen(target, shell=True)
             return True
-        app_name = normalize_app_name(app_raw)
-        print(f"Юко: Пытаюсь открыть {app_name}.")
-        launch_app(app_name)
+
+        if app_type == "shortcut" and target:
+            print(f"Юко: Открываю {target}.")
+            launch_app(target)
+            return True
+
+        if raw_name:
+            print(f"Юко: Пытаюсь открыть {raw_name}.")
+            launch_app(raw_name)
+            return True
+
+        print("Юко: Не поняла, какое приложение открыть.")
         return True
 
-    return False  # "ai" и всё остальное — пусть main отправляет в ИИ
+    # всё остальное — пусть main отправляет в ИИ
+    return False

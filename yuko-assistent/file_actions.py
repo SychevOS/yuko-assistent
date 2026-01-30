@@ -1,6 +1,6 @@
+#file_actions.py
 import os
 from pathlib import Path
-
 from send2trash import send2trash  # pip install send2trash
 from Logger import logger
 

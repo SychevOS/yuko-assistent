@@ -1,5 +1,3 @@
-# РАБОТА СО ЗВУКОМ
-
 # audio_stt.py
 import sounddevice as sd
 from faster_whisper import WhisperModel

@@ -1,3 +1,4 @@
+# main.py
 import sys
 import time
 from pathlib import Path
@@ -100,7 +101,7 @@ def main():
 
         # ----- анализ намерения -----
         try:
-            intent = analyze(phrase)
+            intent_data = analyze(phrase)
         except Exception:
             logger.exception(f"Ошибка analyze() для фразы '{phrase}'")
             # при ошибке анализа лучше усыпить, чтобы не зациклиться
@@ -110,10 +111,10 @@ def main():
 
         # ----- локальные команды -----
         try:
-            handled = handle_intent(intent, phrase)
+            handled = handle_intent(intent_data)
         except Exception:
             logger.exception(
-                f"Ошибка handle_intent() для intent={intent}, phrase='{phrase}'"
+                f"Ошибка handle_intент() для intent_data={intent_data}, phrase='{phrase}'"
             )
             handled = False
 
@@ -137,7 +138,6 @@ def main():
             resp = ask_ai(clean_query)
         except Exception:
             logger.exception(f"Ошибка при запросе к ИИ: '{clean_query}'")
-            # можно сказать пользователю, что что-то пошло не так
             print("Юко: Что-то пошло не так при обращении к ИИ.")
             active = False
             active_until = None

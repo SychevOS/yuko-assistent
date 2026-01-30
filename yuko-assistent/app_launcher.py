@@ -16,7 +16,7 @@ import traceback
 from typing import Any
 import winreg
 import win32file  # для проверки типа бинарника через GetBinaryType
-
+from transcription import RussianTranscriber, AppNameMatcher
 from app_indexer import load_app_index, APP_INDEX_PATH  # индекс путей (list[{"name","path"}])
 
 
@@ -28,6 +28,67 @@ ALIASES_PATH = Path(__file__).parent / "aliases.json"  # динамически�
 print("DEBUG APP_INDEX_PATH:", APP_INDEX_PATH)
 APP_INDEX = load_app_index()
 print("DEBUG APP_INDEX size:", len(APP_INDEX))
+# Кэш индекса в памяти (если хочешь — можно использовать уже имеющийся APP_INDEX)
+_APP_INDEX_CACHE: list[dict] | None = None
+
+
+def _get_app_index() -> list[dict]:
+    global _APP_INDEX_CACHE
+    if _APP_INDEX_CACHE is None:
+        # если индекс уже загрузили как APP_INDEX — переиспользуем
+        global APP_INDEX
+        if APP_INDEX:
+            _APP_INDEX_CACHE = APP_INDEX
+        else:
+            _APP_INDEX_CACHE = load_app_index()
+        print(f"DEBUG app_launcher: loaded {_APP_INDEX_CACHE and len(_APP_INDEX_CACHE) or 0} apps from index")
+    return _APP_INDEX_CACHE or []
+
+
+def find_app_by_name(query: str, threshold: float = 0.3) -> str | None:
+    """
+    Ищет лучшее совпадение приложения по пользовательскому названию.
+    Возвращает путь к exe или None.
+    """
+    query = (query or "").strip()
+    if not query:
+        return None
+
+    index = _get_app_index()
+    if not index:
+        print("DEBUG app_launcher: empty app index")
+        return None
+
+    # Собираем список текстовых кандидатов и их связь с путями
+    candidates_texts: list[str] = []
+    candidates_meta: list[tuple[str, str]] = []  # (display_name, path)
+
+    for item in index:
+        name = item.get("name", "")
+        path = item.get("path", "")
+        if not name or not path:
+            continue
+        variants = item.get("variants")
+        if not isinstance(variants, list):
+            variants = RussianTranscriber.normalize_app_name(name)
+        for v in variants:
+            candidates_texts.append(v)
+            candidates_meta.append((name, path))
+
+    best_text, score = AppNameMatcher.find_best_match(query, candidates_texts, threshold=threshold)
+    if not best_text:
+        print(f"DEBUG app_launcher: no match for '{query}' (score < {threshold})")
+        return None
+
+    for (display_name, path), cand_text in zip(candidates_meta, candidates_texts):
+        if cand_text == best_text:
+            print(
+                f"DEBUG app_launcher: matched '{query}' -> "
+                f"'{display_name}' ({best_text}), score={score:.3f}"
+            )
+            return path
+
+    return None
 
 
 # Системные приложения (человек → команда)
@@ -432,6 +493,13 @@ def find_app_path(app_name: str) -> str | None:
 
     query = _normalize_name(app_name)
     print(f"DEBUG find_app_path: asked_for='{app_name}' canon='{query}'")
+        # --- НОВЫЙ шаг: умный поиск по транскрипции + индекс с variants ---
+    smart_path = find_app_by_name(original_spoken)
+    if smart_path:
+        print(f"DEBUG find_app_path: smart matcher hit -> {smart_path}")
+        # авто-регистрация в кеше, если хочешь
+        register_app(query, smart_path)
+        return smart_path
 
     query_translit = translit_ru_to_lat(query)
     if query_translit != query:
