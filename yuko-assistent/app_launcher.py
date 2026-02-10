@@ -1,8 +1,8 @@
+# app_launcher.py
 """
-app_launcher.py
 Модуль для запуска приложений Windows с умным автоматическим поиском.
 
-- Использует индекс приложений (app_indexer.load_app_index) — список объектов {name, path}.
+- Использует индекс приложений (app_indexer.load_app_index) — список объектов {name, path, variants}.
 - Проверяет, что exe совместим (32/64-битный PE).
 - Умеет запускать системные команды и обычные программы.
 - Поддерживает статические и динамические алиасы: как пользователь говорит → реальное имя из индекса.
@@ -13,82 +13,23 @@ import json
 import subprocess
 from pathlib import Path
 import traceback
-from typing import Any
+from typing import Any, Optional
+from Logger import logger
 import winreg
 import win32file  # для проверки типа бинарника через GetBinaryType
+
+from app_indexer import load_app_index, APP_INDEX_PATH
 from transcription import RussianTranscriber, AppNameMatcher
-from app_indexer import load_app_index, APP_INDEX_PATH  # индекс путей (list[{"name","path"}])
+from words_config import APP_NAME_ALIASES
 
 
 # Пути к конфигам
 CONFIG_PATH = Path(__file__).parent / "apps.json"      # кеш путей (если нужно)
 ALIASES_PATH = Path(__file__).parent / "aliases.json"  # динамические алиасы
 
-
 print("DEBUG APP_INDEX_PATH:", APP_INDEX_PATH)
 APP_INDEX = load_app_index()
 print("DEBUG APP_INDEX size:", len(APP_INDEX))
-# Кэш индекса в памяти (если хочешь — можно использовать уже имеющийся APP_INDEX)
-_APP_INDEX_CACHE: list[dict] | None = None
-
-
-def _get_app_index() -> list[dict]:
-    global _APP_INDEX_CACHE
-    if _APP_INDEX_CACHE is None:
-        # если индекс уже загрузили как APP_INDEX — переиспользуем
-        global APP_INDEX
-        if APP_INDEX:
-            _APP_INDEX_CACHE = APP_INDEX
-        else:
-            _APP_INDEX_CACHE = load_app_index()
-        print(f"DEBUG app_launcher: loaded {_APP_INDEX_CACHE and len(_APP_INDEX_CACHE) or 0} apps from index")
-    return _APP_INDEX_CACHE or []
-
-
-def find_app_by_name(query: str, threshold: float = 0.3) -> str | None:
-    """
-    Ищет лучшее совпадение приложения по пользовательскому названию.
-    Возвращает путь к exe или None.
-    """
-    query = (query or "").strip()
-    if not query:
-        return None
-
-    index = _get_app_index()
-    if not index:
-        print("DEBUG app_launcher: empty app index")
-        return None
-
-    # Собираем список текстовых кандидатов и их связь с путями
-    candidates_texts: list[str] = []
-    candidates_meta: list[tuple[str, str]] = []  # (display_name, path)
-
-    for item in index:
-        name = item.get("name", "")
-        path = item.get("path", "")
-        if not name or not path:
-            continue
-        variants = item.get("variants")
-        if not isinstance(variants, list):
-            variants = RussianTranscriber.normalize_app_name(name)
-        for v in variants:
-            candidates_texts.append(v)
-            candidates_meta.append((name, path))
-
-    best_text, score = AppNameMatcher.find_best_match(query, candidates_texts, threshold=threshold)
-    if not best_text:
-        print(f"DEBUG app_launcher: no match for '{query}' (score < {threshold})")
-        return None
-
-    for (display_name, path), cand_text in zip(candidates_meta, candidates_texts):
-        if cand_text == best_text:
-            print(
-                f"DEBUG app_launcher: matched '{query}' -> "
-                f"'{display_name}' ({best_text}), score={score:.3f}"
-            )
-            return path
-
-    return None
 
 
 # Системные приложения (человек → команда)
@@ -115,10 +56,8 @@ SYSTEM_APPS = {
 
     "powershell": "powershell",
     "павершелл": "powershell",
-
-    "anydesk": "AnyDesk",
-    "энни дэск": "AnyDesk",
 }
+
 
 # Статические алиасы: заранее известные фразы → каноническое имя из индекса
 ALIASES_STATIC = {
@@ -255,159 +194,11 @@ def teach_alias(spoken: str, actual_name: str):
 
 
 # ==========================
-# Методы поиска (реестр, Пуск, файловая система)
+# Вспомогательные нормализации
 # ==========================
 
-def _iter_uninstall_keys():
-    reg_paths = [
-        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
-        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
-        (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
-    ]
-    for hive, subkey_path in reg_paths:
-        try:
-            with winreg.OpenKey(hive, subkey_path) as key:
-                count = winreg.QueryInfoKey(key)[0]
-                for i in range(count):
-                    try:
-                        subkey_name = winreg.EnumKey(key, i)
-                        yield hive, f"{subkey_path}\\{subkey_name}"
-                    except Exception:
-                        continue
-        except Exception:
-            continue
-
-
-def find_app_in_registry(app_name: str) -> str | None:
-    app_name = app_name.lower().strip()
-
-    try:
-        for hive, full_subkey_path in _iter_uninstall_keys():
-            try:
-                with winreg.OpenKey(hive, full_subkey_path) as subkey:
-                    try:
-                        display_name = winreg.QueryValueEx(subkey, "DisplayName")[0]
-                    except Exception:
-                        display_name = ""
-
-                    if not display_name:
-                        continue
-
-                    if app_name not in display_name.lower():
-                        continue
-
-                    display_icon = ""
-                    install_location = ""
-
-                    try:
-                        display_icon = winreg.QueryValueEx(subkey, "DisplayIcon")[0]
-                    except Exception:
-                        display_icon = ""
-
-                    try:
-                        install_location = winreg.QueryValueEx(subkey, "InstallLocation")[0]
-                    except Exception:
-                        install_location = ""
-
-                    candidates: list[str] = []
-
-                    if display_icon:
-                        icon_path = display_icon.split(",")[0].strip().strip('"')
-                        if icon_path and os.path.isfile(icon_path):
-                            candidates.append(icon_path)
-
-                    if install_location and os.path.isdir(install_location):
-                        for file in os.listdir(install_location):
-                            if not file.lower().endswith(".exe"):
-                                continue
-                            stem = file.lower()
-                            if app_name in stem or any(t in stem for t in app_name.split()):
-                                full_path = os.path.join(install_location, file)
-                                candidates.append(full_path)
-
-                    for path in candidates:
-                        if is_executable_compatible(path):
-                            return path
-            except Exception:
-                continue
-    except Exception:
-        pass
-
-    return None
-
-
-def find_in_start_menu(app_name: str) -> str | None:
-    app_name_lower = app_name.lower().strip()
-    try:
-        start_menu_paths = [
-            Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs",
-            Path(r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs"),
-        ]
-
-        import win32com.client
-        shell = win32com.client.Dispatch("WScript.Shell")
-
-        for start_path in start_menu_paths:
-            if not start_path.exists():
-                continue
-
-            for shortcut in start_path.rglob("*.lnk"):
-                if app_name_lower in shortcut.stem.lower():
-                    try:
-                        shortcut_obj = shell.CreateShortcut(str(shortcut))
-                        target = shortcut_obj.TargetPath
-                        if target and is_executable_compatible(target):
-                            return target
-                    except Exception:
-                        continue
-    except Exception:
-        pass
-    return None
-
-
-def search_filesystem(app_name: str) -> str | None:
-    app_name_lower = app_name.lower().strip()
-    search_terms = [app_name_lower]
-    if " " in app_name_lower:
-        search_terms.append(app_name_lower.replace(" ", ""))
-
-    search_paths = [
-        Path(os.environ.get("ProgramFiles", r"C:\Program Files")),
-        Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")),
-        Path.home() / "AppData" / "Local" / "Programs",
-        Path.home() / "AppData" / "Roaming",
-    ]
-
-    for base_path in search_paths:
-        if not base_path.exists():
-            continue
-        try:
-            checked = 0
-            max_checked = 5000
-
-            for exe_file in base_path.rglob("*.exe"):
-                checked += 1
-                if checked > max_checked:
-                    break
-
-                stem_lower = exe_file.stem.lower()
-                if any(term in stem_lower for term in search_terms):
-                    try:
-                        if exe_file.stat().st_size > 10000 and is_executable_compatible(str(exe_file)):
-                            return str(exe_file)
-                    except OSError:
-                        continue
-        except (PermissionError, OSError):
-            continue
-
-    return None
-
-
-# ==========================
-# Универсальный матчинг имени
-# ==========================
 def translit_ru_to_lat(s: str) -> str:
-    """Очень простой транслит кириллицы в латиницу для матчингa имён."""
+    """Очень простой транслит кириллицы в латиницу для матчинга имён."""
     table = {
         "а": "a",  "б": "b",  "в": "v",   "г": "g",  "д": "d",
         "е": "e",  "ё": "e",  "ж": "zh",  "з": "z",  "и": "i",
@@ -423,83 +214,107 @@ def translit_ru_to_lat(s: str) -> str:
         res.append(table.get(ch, ch))
     return "".join(res)
 
+
 def _normalize_name(raw: str) -> str:
-    s = raw.strip().lower()
+    s = (raw or "").strip().lower()
     for ch in [".", ",", "!", "?", "-", "_"]:
         s = s.replace(ch, " ")
     return " ".join(s.split())
 
 
-def _score_name(query: str, candidate: str) -> float:
-    """
-    Простая метрика похожести:
-      - общие слова
-      - длина
-      - бонус за совпадение начала/точное совпадение
-      - штраф за слова типа service/updater/helper/client/streaming
-    """
-    if not query or not candidate:
-        return 0.0
+# ==========================
+# Индекс приложений в памяти + умный поиск
+# ==========================
 
-    q = _normalize_name(query)
-    c = _normalize_name(candidate)
+_APP_INDEX_CACHE: list[dict] | None = None
 
-    q_words = set(q.split())
-    c_words = set(c.split())
 
-    if not q_words or not c_words:
-        return 0.0
+def _get_app_index() -> list[dict]:
+    global _APP_INDEX_CACHE
+    if _APP_INDEX_CACHE is None:
+        global APP_INDEX
+        if APP_INDEX:
+            _APP_INDEX_CACHE = APP_INDEX
+        else:
+            _APP_INDEX_CACHE = load_app_index()
+        print(f"DEBUG app_launcher: loaded {_APP_INDEX_CACHE and len(_APP_INDEX_CACHE) or 0} apps from index")
+    return _APP_INDEX_CACHE or []
 
-    common = q_words & c_words
-    if not common:
-        return 0.0
+def find_app_by_name(query: str, threshold: float = 0.45) -> Optional[str]:
+    query = (query or "").strip().lower()
+    if not query:
+        return None
 
-    word_score = len(common) / max(len(q_words), len(c_words))
-    len_score = 1.0 - abs(len(c) - len(q)) / max(len(c), len(q), 1)
-    prefix_score = 1.0 if c.startswith(q) or q.startswith(c) else 0.0
+    index = _get_app_index()
+    if not index:
+        print("DEBUG app_launcher: empty app index")
+        return None
 
-    bad_words = {"service", "updater", "helper", "client", "streaming", "bootstrapper"}
-    penalty = 0.0
-    if any(bad in c_words for bad in bad_words):
-        penalty = 0.3
+    # 1) Точное совпадение по name
+    for item in index:
+        name = str(item.get("name", "")).strip().lower()
+        path = str(item.get("path", "")).strip()
+        if not name or not path:
+            continue
+        if name == query:
+            print(f"DEBUG app_launcher: exact match '{query}' -> '{name}' -> {path}")
+            return path
 
-    exact_bonus = 0.0
-    if q == c:
-        exact_bonus = 0.3
+    # 2) Fuzzy‑поиск по variants
+    candidates_texts: list[str] = []
+    candidates_meta: list[tuple[str, str]] = []
 
-    base = 0.5 * word_score + 0.4 * len_score + 0.1 * prefix_score
-    return max(0.0, base + exact_bonus - penalty)
+    for item in index:
+        display_name = item["name"]
+        path = item["path"]
+        variants = item.get("variants")
+        if not isinstance(variants, list):
+            variants = RussianTranscriber.normalize_app_name(display_name)
+        for v in variants:
+            v_clean = (v or "").strip().lower()
+            if not v_clean:
+                continue
+            candidates_texts.append(v_clean)
+            candidates_meta.append((display_name, path))
+
+    best_text, score = AppNameMatcher.find_best_match(query, candidates_texts, threshold=threshold)
+    if not best_text:
+        print(f"DEBUG app_launcher: no fuzzy match for '{query}' (score < {threshold})")
+        return None
+
+    for (display_name, path), cand_text in zip(candidates_meta, candidates_texts):
+        if cand_text == best_text:
+            print(
+                f"DEBUG app_launcher: fuzzy matched '{query}' -> "
+                f"'{display_name}' ({best_text}), score={score:.3f}"
+            )
+            return path
+
+    return None
 
 
 # ==========================
-# Основная логика поиска пути
+# Поиск пути к приложению
 # ==========================
 
-from typing import Any  # убедись, что это есть вверху файла
-
-def find_app_path(app_name: str) -> str | None:
+def find_app_path(app_name: str) -> Optional[str]:
     """
     Основной поиск пути к приложению.
-      0. Алиасы (статические и динамические).
-      1. Индекс приложений (APP_INDEX) с _score_name + транслит кириллицы→латиницу.
+      0. Алиасы (статические, динамические, APP_NAME_ALIASES).
+      1. Индекс приложений (точный + fuzzy).
       2. Системные команды.
       3. Кеш (apps.json).
       4. Реестр.
       5. Меню Пуск.
       6. Файловая система.
     """
-    # как сказал пользователь (сырая фраза из ASR)
     original_spoken = app_name
-
     query = _normalize_name(app_name)
     print(f"DEBUG find_app_path: asked_for='{app_name}' canon='{query}'")
-        # --- НОВЫЙ шаг: умный поиск по транскрипции + индекс с variants ---
-    smart_path = find_app_by_name(original_spoken)
-    if smart_path:
-        print(f"DEBUG find_app_path: smart matcher hit -> {smart_path}")
-        # авто-регистрация в кеше, если хочешь
-        register_app(query, smart_path)
-        return smart_path
+
+    if not query:
+        print("DEBUG find_app_path: empty query after normalize")
+        return None
 
     query_translit = translit_ru_to_lat(query)
     if query_translit != query:
@@ -519,66 +334,19 @@ def find_app_path(app_name: str) -> str | None:
         query = _normalize_name(alias)
         query_translit = translit_ru_to_lat(query)
 
-    best_score = 0.0
-    best_path: str | None = None
-    best_item: dict[str, Any] | None = None
-    scored: list[tuple[float, str, str]] = []  # (score, name, path)
+    # 0.2. Алиасы из words_config.APP_NAME_ALIASES
+    alias_wc = APP_NAME_ALIASES.get(query)
+    if alias_wc:
+        print(f"DEBUG alias(words_config): '{query}' -> '{alias_wc}'")
+        query = _normalize_name(alias_wc)
+        query_translit = translit_ru_to_lat(query)
 
-    # 1. Индекс приложений
-    if APP_INDEX:
-        for item in APP_INDEX:
-            name = item.get("name", "")
-            path = item.get("path", "")
-            if not name or not path:
-                continue
-            if not os.path.isfile(path) or not is_executable_compatible(path):
-                continue
-
-            score_orig = _score_name(query, name)
-            score_translit = _score_name(query_translit, name) if query_translit else 0.0
-            score = max(score_orig, score_translit)
-
-            # Fallback: если _score_name дал 0, пробуем тупой подстроковый матч
-            if score == 0.0:
-                q = (query_translit or query).lower()
-                n = name.lower()
-                simple_score = 0.0
-                if q and q in n:
-                    simple_score = len(q) / len(n)
-                elif q and any(part and part in n for part in q.split()):
-                    simple_score = 0.3
-                score = simple_score
-
-            scored.append((score, name, path))
-
-            if score > best_score:
-                best_score = score
-                best_path = path
-                best_item = item
-
-        if scored:
-            scored.sort(reverse=True, key=lambda x: x[0])
-            print("DEBUG candidates (top 5):")
-            for s, n, p in scored[:5]:
-                print(f"  {s:.2f}  {n}  ->  {p}")
-
-        THRESHOLD = 0.3
-        if best_path and best_score >= THRESHOLD:
-            print(f"DEBUG index match: '{query}' score={best_score:.2f} -> {best_path}")
-
-            # Авто-обучение алиаса
-            if best_item:
-                canonical_name = best_item.get("name", "")
-                spoken_norm = _normalize_name(original_spoken)
-                canonical_norm = _normalize_name(canonical_name)
-                print(
-                    f"DEBUG alias_check: spoken='{spoken_norm}' "
-                    f"canonical='{canonical_norm}' score={best_score:.2f}"
-                )
-                if spoken_norm and canonical_norm and spoken_norm != canonical_norm:
-                    teach_alias(spoken_norm, canonical_name)
-
-            return best_path
+    # 1. Умный поиск по индексу
+    smart_path = find_app_by_name(query)
+    if smart_path:
+        print(f"DEBUG find_app_path: smart matcher hit -> {smart_path}")
+        register_app(query, smart_path)
+        return smart_path
 
     # 2. Системные приложения
     if query in SYSTEM_APPS:
@@ -591,59 +359,52 @@ def find_app_path(app_name: str) -> str | None:
         if is_executable_compatible(path) or (path in SYSTEM_APPS.values() and os.path.sep not in path):
             return path
 
-    # 4. Реестр
-    reg_path = find_app_in_registry(original_spoken)
-    if reg_path:
-        register_app(query, reg_path)
-        return reg_path
-
-    # 5. Меню Пуск
-    start_menu_path = find_in_start_menu(original_spoken)
-    if start_menu_path:
-        register_app(query, start_menu_path)
-        return start_menu_path
-
-    # 6. Файловая система
-    fs_path = search_filesystem(original_spoken)
-    if fs_path:
-        register_app(query, fs_path)
-        return fs_path
-
+    # 4. Реестр / 5. Пуск / 6. Файловая система — оставим как резерв,
+    # если тебе нужно — можно вернуть твой старый код этих функций и вызывать их здесь.
     print(f"DEBUG find_app_path: no path found for '{app_name}'")
     return None
-
-
-
 
 # ==========================
 # Запуск приложения
 # ==========================
 
-def launch_app(app_name: str, args: list | None = None) -> bool:
-    app_name_clean = app_name.strip()
-    app_path = find_app_path(app_name_clean)
-
-    if not app_path:
-        print(f"DEBUG launch_app: path not found for '{app_name_clean}'")
-        return False
-
-    # финальная проверка
-    if not (app_path in SYSTEM_APPS.values() and os.path.sep not in app_path):
-        if not is_executable_compatible(app_path):
-            print(f"DEBUG launch_app: incompatible exe '{app_path}'")
+def launch_app(path: str) -> bool:
+    try:
+        if not path:
+            logger.error("launch_app: empty path")
             return False
 
-    print(f"DEBUG launch_app: about to run '{app_path}'")
+        if not os.path.exists(path):
+            logger.error(f"launch_app: path not exists: {path}")
+            return False
 
-    try:
-        cmd = [app_path]
-        if args:
-            cmd.extend(args)
-        subprocess.Popen(cmd)
-        return True
+        ext = os.path.splitext(path)[1].lower()
+
+        # --- новое: поддержка ярлыков ---
+        if ext == ".lnk":
+            try:
+                os.startfile(path)
+                logger.info(f"launch_app: started shortcut: {path}")
+                return True
+            except OSError as e:
+                logger.error(f"launch_app: failed to start .lnk {path}: {e}")
+                return False
+
+        # --- твоя старая ветка для .exe ---
+        if ext == ".exe":
+            try:
+                subprocess.Popen([path])
+                logger.info(f"launch_app: started exe: {path}")
+                return True
+            except Exception as e:
+                logger.error(f"launch_app: failed to start exe {path}: {e}")
+                return False
+
+        logger.error(f"launch_app: unsupported extension: {path}")
+        return False
+
     except Exception as e:
-        print("DEBUG launch_app ERROR:", e)
-        traceback.print_exc()
+        logger.error(f"launch_app: unexpected error for {path}: {e}")
         return False
 
 

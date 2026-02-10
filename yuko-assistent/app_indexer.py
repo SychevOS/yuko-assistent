@@ -1,377 +1,281 @@
+# app_indexer.py
 """
-app_indexer.py
-Сканирует систему и строит индекс установленных приложений:
-  - DisplayName из реестра (Uninstall)
-  - ярлыки из меню Пуск
-  - верхний уровень Program Files / Program Files (x86)
-Результат: список объектов { "name": <str>, "path": <str>, "variants": [<str>, ...] } в app_index.json.
+Универсальный индексер приложений для Юко.
+
+Собирает .exe из:
+- реестра (Uninstall)
+- меню Пуск
+- Program Files / Program Files (x86)
+- %LOCALAPPDATA%
+- %APPDATA%
+
+Фильтрует мусор по глубине, размеру и имени.
+Результат кладёт в app_index.json:
+[
+  {"name": "...", "path": "...", "source": "...", "variants": [...]},
+  ...
+]
 """
 
 import os
 import json
 from pathlib import Path
+from typing import List, Dict, Any
+
 import winreg
-import win32file
 
-from transcription import RussianTranscriber  # <-- НОВЫЙ импорт
+from Logger import logger
+from transcription import RussianTranscriber
 
-
-APP_INDEX_PATH = Path(__file__).parent / "app_index.json"
-
-# exe, которые НЕ хотим считать запускаемыми приложениями (жёсткие имена)
-BAD_LEAFS = {
-    "unins000.exe",
-    "uninstall.exe",
-    "setup.exe",
-    "install.exe",
-    "vc_redist.x86.exe",
-    "vc_redist.x64.exe",
-}
-
-# Подстроки в имени файла, которые считаем "служебными"/вспомогательными
-BAD_SUBSTRINGS = [
-    "updater", "update", "crash", "dump", "helper",
-    "streaming_client", "streaming-client",
-    "unins", "uninstall", "report", "bug",
-    "diagnostic", "service", "watcher", "tray",
-    "bootstrapper", "installer", "setup",
-]
+BASE_DIR = Path(__file__).parent
+APP_INDEX_PATH = BASE_DIR / "app_index.json"
 
 
-def is_executable_compatible(path: str) -> bool:
-    if not os.path.isfile(path):
-        return False
+# ---------- общие утилиты ----------
+
+def _is_good_exe(path: Path) -> bool:
+    """
+    Очень грубый фильтр .exe:
+    - существует
+    - размер > 200 КБ (отсекаем мелкий мусор)
+    """
     try:
-        bin_type = win32file.GetBinaryType(path)
-        # 0 = 32-bit, 6 = 64-bit
-        return bin_type in (0, 6)
+        if not path.is_file():
+            return False
+        if path.suffix.lower() != ".exe":
+            return False
+        if path.stat().st_size < 200 * 1024:
+            return False
+        return True
     except Exception:
         return False
 
 
-def is_main_exe(path: Path) -> bool:
-    """
-    Общий фильтр "главных" exe:
-      - отбрасываем по BAD_SUBSTRINGS,
-      - отбрасываем слишком маленькие exe (часто это лаунчеры/утилиты).
-    """
-    name = path.stem.lower()
-
-    if any(bad in name for bad in BAD_SUBSTRINGS):
-        return False
-
-    try:
-        size = path.stat().st_size
-        if size < 200 * 1024:  # 200 KB
-            return False
-    except OSError:
-        return False
-
-    return True
-
-
-def _prefer_real_exe(exe_path: str) -> str:
-    """
-    Если путь похож на лаунчер/апдейтер, пробуем найти более «настоящий» exe
-    в той же папке (крупный файл, не update/launcher/install/setup).
-    """
-    bad_names = {
-        "update.exe", "launcher.exe", "install.exe",
-        "setup.exe", "uninstall.exe", "unins000.exe"
+def _make_entry(name: str, path: Path, source: str) -> Dict[str, Any]:
+    norm_name = name.strip()
+    variants = RussianTranscriber.normalize_app_name(norm_name)
+    return {
+        "name": norm_name,
+        "path": str(path),
+        "source": source,
+        "variants": variants,
     }
 
-    p = Path(exe_path)
-    if p.name.lower() not in bad_names:
-        return exe_path
 
-    folder = p.parent
-    if not folder.exists():
-        return exe_path
+# ---------- скан реестра ----------
 
-    candidates = []
-    try:
-        for f in folder.glob("*.exe"):
-            if f.name.lower() in bad_names:
-                continue
-            if f.stat().st_size < 5_000_000:
-                continue
-            if not is_executable_compatible(str(f)):
-                continue
-            # общий фильтр "главных" exe
-            if not is_main_exe(f):
-                continue
-            candidates.append(f)
-    except (PermissionError, OSError):
-        return exe_path
+def _scan_registry_apps() -> List[Dict[str, Any]]:
+    apps: List[Dict[str, Any]] = []
 
-    if not candidates:
-        return exe_path
-
-    best = max(candidates, key=lambda x: x.stat().st_mtime)
-    return str(best)
-
-
-# ---------- Скан реестра ----------
-
-def _iter_uninstall_keys():
-    reg_paths = [
+    uninstall_roots = [
         (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
         (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
         (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
     ]
-    for hive, subkey_path in reg_paths:
+
+    for root, subkey in uninstall_roots:
         try:
-            with winreg.OpenKey(hive, subkey_path) as key:
-                count = winreg.QueryInfoKey(key)[0]
-                for i in range(count):
+            with winreg.OpenKey(root, subkey) as hkey:
+                for i in range(0, winreg.QueryInfoKey(hkey)[0]):
                     try:
-                        subkey_name = winreg.EnumKey(key, i)
-                        yield hive, f"{subkey_path}\\{subkey_name}"
-                    except Exception:
+                        sk_name = winreg.EnumKey(hkey, i)
+                        with winreg.OpenKey(hkey, sk_name) as sk:
+                            try:
+                                display_name, _ = winreg.QueryValueEx(sk, "DisplayName")
+                            except OSError:
+                                continue
+                            try:
+                                install_location, _ = winreg.QueryValueEx(sk, "InstallLocation")
+                            except OSError:
+                                install_location = ""
+
+                            if not display_name:
+                                continue
+
+                            candidate = None
+                            if install_location:
+                                p = Path(install_location)
+                                if p.is_dir():
+                                    exe_name = display_name.split()[0] + ".exe"
+                                    candidate = p / exe_name
+
+                            if candidate and _is_good_exe(candidate):
+                                apps.append(_make_entry(display_name, candidate, "registry"))
+                    except OSError:
                         continue
-        except Exception:
+        except OSError:
             continue
 
-
-def scan_registry_apps() -> list[dict]:
-    apps = []
-    for hive, subkey_path in _iter_uninstall_keys():
-        try:
-            with winreg.OpenKey(hive, subkey_path) as subkey:
-                try:
-                    display_name = winreg.QueryValueEx(subkey, "DisplayName")[0]
-                except Exception:
-                    continue
-
-                if not display_name:
-                    continue
-
-                exe_path = None
-
-                # DisplayIcon
-                try:
-                    display_icon = winreg.QueryValueEx(subkey, "DisplayIcon")[0]
-                    icon_path = display_icon.split(",")[0].strip().strip('"')
-                    if icon_path and is_executable_compatible(icon_path):
-                        exe_path = icon_path
-                except Exception:
-                    pass
-
-                # InstallLocation fallback
-                if not exe_path:
-                    try:
-                        install_location = winreg.QueryValueEx(subkey, "InstallLocation")[0]
-                        if install_location and os.path.isdir(install_location):
-                            for file in os.listdir(install_location):
-                                if file.lower().endswith(".exe"):
-                                    candidate = os.path.join(install_location, file)
-                                    if not is_executable_compatible(candidate):
-                                        continue
-                                    # фильтр "главных" exe
-                                    if not is_main_exe(Path(candidate)):
-                                        continue
-                                    exe_path = candidate
-                                    break
-                    except Exception:
-                        pass
-
-                if not exe_path:
-                    continue
-
-                exe_path = _prefer_real_exe(exe_path)
-
-                leaf = Path(exe_path).name.lower()
-                if leaf in BAD_LEAFS:
-                    continue
-
-                # окончательная проверка на "главность"
-                if not is_main_exe(Path(exe_path)):
-                    continue
-
-                name_key = display_name.strip().lower()
-                apps.append({"name": name_key, "path": exe_path})
-        except Exception:
-            continue
+    logger.info(f"app_indexer: registry apps: {len(apps)}")
     return apps
 
 
-# ---------- Скан меню Пуск ----------
+# ---------- скан меню Пуск ----------
 
-def scan_start_menu_apps() -> list[dict]:
-    apps = []
+def _scan_start_menu() -> List[Dict[str, Any]]:
+    apps: List[Dict[str, Any]] = []
+    start_menu_paths = []
 
-    start_menu_paths = [
-        Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs",
-        Path(r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs"),
-    ]
+    programdata = os.environ.get("PROGRAMDATA")
+    if programdata:
+        start_menu_paths.append(Path(programdata) / "Microsoft/Windows/Start Menu/Programs")
 
-    try:
-        import win32com.client
-        shell = win32com.client.Dispatch("WScript.Shell")
-    except Exception:
-        return apps
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        start_menu_paths.append(Path(appdata) / "Microsoft/Windows/Start Menu/Programs")
 
     for base in start_menu_paths:
-        if not base.exists():
+        if not base.is_dir():
             continue
-        for shortcut in base.rglob("*.lnk"):
+        for lnk in base.rglob("*.lnk"):
             try:
-                shortcut_obj = shell.CreateShortcut(str(shortcut))
-                target = shortcut_obj.TargetPath
-                if not target or not is_executable_compatible(target):
-                    continue
-                # фильтр "главных" exe и здесь, чтобы не ловить ярлыки на апдейтеры
-                if not is_main_exe(Path(target)):
-                    continue
-                display_name = shortcut.stem
-                name_key = display_name.strip().lower()
-                apps.append({"name": name_key, "path": target})
+                name = lnk.stem
+                target = lnk  # ярлык; запускаем через os.startfile
+                apps.append(_make_entry(name, target, "start_menu"))
             except Exception:
                 continue
 
+    logger.info(f"app_indexer: start menu apps: {len(apps)}")
     return apps
 
 
-# ---------- Скан Program Files (верхний уровень) ----------
+# ---------- скан Program Files ----------
 
-def scan_program_files() -> list[dict]:
-    apps = []
-    base_dirs = [
-        Path(os.environ.get("ProgramFiles", r"C:\Program Files")),
-        Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")),
+def _scan_program_files() -> List[Dict[str, Any]]:
+    apps: List[Dict[str, Any]] = []
+
+    pf_paths = []
+    pf = os.environ.get("ProgramFiles")
+    if pf:
+        pf_paths.append(Path(pf))
+    pf86 = os.environ.get("ProgramFiles(x86)")
+    if pf86:
+        pf_paths.append(Path(pf86))
+
+    for base in pf_paths:
+        if not base.is_dir():
+            continue
+        # ограничим глубину: 3 уровня
+        for root, dirs, files in os.walk(base):
+            depth = Path(root).relative_to(base).parts
+            if len(depth) > 3:
+                dirs[:] = []
+                continue
+            for fname in files:
+                if not fname.lower().endswith(".exe"):
+                    continue
+                path = Path(root) / fname
+                if not _is_good_exe(path):
+                    continue
+                name = fname[:-4]
+                apps.append(_make_entry(name, path, "program_files"))
+
+    logger.info(f"app_indexer: pf apps: {len(apps)}")
+    return apps
+
+
+# ---------- универсальный скан AppData ----------
+
+def _scan_appdata() -> List[Dict[str, Any]]:
+    apps: List[Dict[str, Any]] = []
+
+    roots: List[Path] = []
+    local_appdata = os.environ.get("LOCALAPPDATA")
+    if local_appdata:
+        roots.append(Path(local_appdata))
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        roots.append(Path(appdata))
+
+    preferred_dirs = [
+        "Discord",
+        "Telegram Desktop",
+        "anydesk",
+        "WhatsApp",
+        "OBS Studio",
+        "Steam",
+        "Battle.net",
     ]
-    bad_names = {
-        "unins000.exe", "uninstall.exe", "update.exe",
-        "launcher.exe", "install.exe", "setup.exe"
-    }
 
-    for base in base_dirs:
-        if not base.exists():
+    for root in roots:
+        if not root.is_dir():
             continue
 
-        for app_dir in base.iterdir():
-            if not app_dir.is_dir():
-                continue
-
-            exe_candidates = []
+        for sub in root.iterdir():
             try:
-                for exe in app_dir.rglob("*.exe"):
-                    name = exe.name.lower()
-                    if name in bad_names:
+                if not sub.is_dir():
+                    continue
+
+                is_preferred = any(p.lower() in sub.name.lower() for p in preferred_dirs)
+                if not is_preferred:
+                    if sub.name.lower().startswith(("microsoft", "adobe", "google", "mozilla", "temp")):
                         continue
-                    if exe.stat().st_size < 5_000_000:
+
+                for r, dirs, files in os.walk(sub):
+                    depth = Path(r).relative_to(sub).parts
+                    if len(depth) > 3:
+                        dirs[:] = []
                         continue
-                    if not is_executable_compatible(str(exe)):
-                        continue
-                    # общий фильтр "главных" exe
-                    if not is_main_exe(exe):
-                        continue
-                    exe_candidates.append(exe)
-            except (PermissionError, OSError):
+                    for fname in files:
+                        if not fname.lower().endswith(".exe"):
+                            continue
+                        path = Path(r) / fname
+                        if not _is_good_exe(path):
+                            continue
+                        name = fname[:-4]
+                        apps.append(_make_entry(name, path, "appdata"))
+            except Exception:
                 continue
 
-            if not exe_candidates:
-                continue
-
-            main_exe = max(exe_candidates, key=lambda x: x.stat().st_mtime)
-
-            leaf = main_exe.name.lower()
-            if leaf in BAD_LEAFS:
-                continue
-
-            if not is_main_exe(main_exe):
-                continue
-
-            display_name = app_dir.name.replace("_", " ").replace("-", " ")
-            name_key = display_name.strip().lower()
-            apps.append({"name": name_key, "path": str(main_exe)})
-
+    logger.info(f"app_indexer: appdata apps: {len(apps)}")
     return apps
 
 
-# ---------- Построение индекса ----------
+# ---------- объединение и сохранение ----------
 
-def build_app_index() -> list[dict]:
-    """
-    Строит общий индекс приложений и сохраняет его в app_index.json.
+def build_app_index() -> List[Dict[str, Any]]:
+    logger.info("app_indexer: scanning registry...")
+    reg_apps = _scan_registry_apps()
 
-      1. Реестр (Uninstall)
-      2. Меню Пуск
-      3. Program Files / Program Files (x86)
-    """
-    index: list[dict] = []
+    logger.info("app_indexer: scanning start menu...")
+    start_apps = _scan_start_menu()
 
-    print("DEBUG app_indexer: scanning registry...")
-    reg_apps = scan_registry_apps()
-    print("DEBUG app_indexer: registry apps:", len(reg_apps))
-    index.extend(reg_apps)
+    logger.info("app_indexer: scanning Program Files...")
+    pf_apps = _scan_program_files()
 
-    print("DEBUG app_indexer: scanning start menu...")
-    start_apps = scan_start_menu_apps()
-    print("DEBUG app_indexer: start menu apps:", len(start_apps))
-    index.extend(start_apps)
+    logger.info("app_indexer: scanning AppData...")
+    ad_apps = _scan_appdata()
 
-    print("DEBUG app_indexer: scanning Program Files...")
-    pf_apps = scan_program_files()
-    print("DEBUG app_indexer: pf apps:", len(pf_apps))
-    index.extend(pf_apps)
+    all_apps = reg_apps + start_apps + pf_apps + ad_apps
+    logger.info(f"app_indexer: total apps (raw): {len(all_apps)}")
 
-    # удаляем дубли по (name, path)
     seen = set()
-    unique_index: list[dict] = []
-    for item in index:
-        key = (item["name"], item["path"])
+    unique_apps: List[Dict[str, Any]] = []
+    for app in all_apps:
+        key = (app["name"].lower(), app["path"].lower())
         if key in seen:
             continue
         seen.add(key)
-        unique_index.append(item)
+        unique_apps.append(app)
 
-    print("DEBUG app_indexer: total apps (raw):", len(unique_index))
-
-    # ---------- добавляем нормализованные варианты имён для поиска ----------
-    enriched_index: list[dict] = []
-    for item in unique_index:
-        name = item["name"]
-        path = item["path"]
-        variants = RussianTranscriber.normalize_app_name(name)
-        enriched_index.append({
-            "name": name,
-            "path": path,
-            "variants": variants,
-        })
-
-    print("DEBUG app_indexer: total apps (enriched):", len(enriched_index))
+    logger.info(f"app_indexer: total apps (unique): {len(unique_apps)}")
 
     try:
         with open(APP_INDEX_PATH, "w", encoding="utf-8") as f:
-            json.dump(enriched_index, f, ensure_ascii=False, indent=2)
-        print("DEBUG app_indexer: index saved to", APP_INDEX_PATH)
-    except Exception as e:
-        print("ERROR app_indexer: failed to save index:", e)
+            json.dump(unique_apps, f, ensure_ascii=False, indent=2)
+        logger.info(f"app_indexer: index saved to {APP_INDEX_PATH}")
+    except Exception:
+        logger.error("app_indexer: failed to save index")
 
-    return enriched_index
+    return unique_apps
 
 
-def load_app_index() -> list[dict]:
-    if APP_INDEX_PATH.is_file():
-        try:
-            with open(APP_INDEX_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            result: list[dict] = []
-            for item in data:
-                name = str(item.get("name", "")).strip().lower()
-                path = str(item.get("path", "")).strip()
-                variants = item.get("variants")
-                if not isinstance(variants, list):
-                    # старый формат индекса — восстанавливаем варианты
-                    variants = RussianTranscriber.normalize_app_name(name)
-                if name and path:
-                    result.append({
-                        "name": name,
-                        "path": path,
-                        "variants": variants,
-                    })
-            return result
-        except Exception:
-            return []
-    return []
+def load_app_index() -> List[Dict[str, Any]]:
+    if not APP_INDEX_PATH.is_file():
+        return []
+    try:
+        with open(APP_INDEX_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        logger.error("app_indexer: failed to load index")
+        return []

@@ -6,13 +6,15 @@ OLLAMA_URL = "http://127.0.0.1:11434/api/chat"
 MODEL_NAME = "qwen2.5:7b-instruct"
 
 SYSTEM_PROMPT = (
-    "Ты локальный голосовой ассистент Юко на русском языке."
-    "Отвечай не слишком развёрнуто без просьбы пользователя"
-    "Ты девушка"
-    "Ты доброжелательная и общительная"
-    "При вопросе о создателе упоминаешь, что его зовут Финн"
+    "Ты локальный голосовой ассистент Юко на русском языке. "
+    "Отвечай не слишком развёрнуто без просьбы пользователя. "
+    "Ты девушка. "
+    "Ты доброжелательная и общительная. "
+    "При вопросе о создателе упоминаешь, что его зовут Финн. "
     "Если нужно выполнить действие на ПК, используй спец-теги в квадратных скобках, например: "
-    "[OPEN_BROWSER], [YOUTUBE_SEARCH:запрос], [WEB_SEARCH:запрос], [SEARCH_FILE:имя]."
+    "[OPEN_BROWSER], [YOUTUBE_SEARCH:запрос], [WEB_SEARCH:запрос], [SEARCH_FILE:имя]. "
+    "Не используй специальные теги для Discord, Telegram, Steam и других приложений — "
+    "для их запуска есть отдельная голосовая логика."
 )
 
 
@@ -39,12 +41,16 @@ def ask_ai(message: str) -> str:
     }
 
     try:
-        logger.info(f"AI_HTTP_REQUEST: url={OLLAMA_URL}, model={MODEL_NAME}, msg='{message}'")
+        logger.info(
+            f"AI_HTTP_REQUEST: url={OLLAMA_URL}, model={MODEL_NAME}, msg='{message}'"
+        )
         resp = requests.post(OLLAMA_URL, json=payload, timeout=120)
         resp.raise_for_status()
         data = resp.json()
     except Exception:
-        logger.exception("AI_HTTP_ERROR: ошибка обращения к локальной модели через Ollama")
+        logger.exception(
+            "AI_HTTP_ERROR: ошибка обращения к локальной модели через Ollama"
+        )
         return "У меня проблема с локальной моделью, попробуй позже."
 
     try:
